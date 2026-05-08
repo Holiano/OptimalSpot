@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spot</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2937; background: #f8fafc; }
+    .app { display: flex; height: 100vh; }
+    .sidebar { width: 320px; flex-shrink: 0; background: #fff; border-right: 1px solid #e5e7eb; padding: 18px 18px 22px; overflow-y: auto; }
+    .map-wrap { flex: 1; position: relative; border-left: 1px solid #e5e7eb; }
+    #map { position: absolute; inset: 0; background: #eef2f7; }
+
+    h1 { margin: 0 0 2px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+    .sub { margin: 0 0 18px; color: #6b7280; font-size: 13px; }
+    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; font-weight: 600; margin: 16px 0 8px; }
+    section { border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 4px; }
+    section:last-of-type { border-bottom: none; }
+
+    .pills { display: flex; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border: 2px solid #e5e7eb; border-radius: 999px; cursor: pointer; margin: 0 6px 6px 0; background: #fff; font-size: 13px; user-select: none; transition: background 0.12s; }
+    .pill .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .pill .name { outline: none; min-width: 24px; max-width: 110px; padding: 1px 2px; border-radius: 3px; }
+    .pill .name:focus { background: #f1f5f9; }
+    .pill .x { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 16px; padding: 0 2px; line-height: 1; }
+    .pill .x:hover { color: #ef4444; }
+
+    button#addPerson { background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px; color: #475569; }
+    button#addPerson:hover { background: #f8fafc; }
+    button#addPerson:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #nextLabel, #nextType { width: 100%; padding: 7px 9px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; margin-bottom: 6px; background: #fff; font-family: inherit; color: inherit; }
+    #nextLabel:focus, #nextType:focus { outline: none; border-color: #94a3b8; }
+    .hint { font-size: 12px; color: #94a3b8; margin: 6px 0 0; }
+
+    .point { background: #f9fafb; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #f1f5f9; }
+    .point .row1 { display: flex; align-items: center; gap: 8px; }
+    .point .label { font-weight: 500; flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .point .type-badge { background: #e5e7eb; color: #4b5563; font-size: 10px; padding: 2px 7px; border-radius: 999px; text-transform: lowercase; letter-spacing: 0.02em; }
+    .point .x { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 16px; padding: 0; line-height: 1; }
+    .point .x:hover { color: #ef4444; }
+    .point .row2 { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .point .row2 input[type=range] { flex: 1; accent-color: #1f2937; }
+    .point .w { font-size: 11px; color: #6b7280; min-width: 32px; text-align: right; }
+
+    #calc { width: 100%; padding: 11px; background: #1f2937; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 14px; }
+    #calc:disabled { background: #d1d5db; cursor: not-allowed; }
+    #calc:hover:not(:disabled) { background: #111827; }
+
+    .pin-icon { background: transparent; border: none; }
+    .pin-shape { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.3); }
+
+    .star-icon { background: transparent; border: none; }
+    .star { font-size: 30px; color: #fbbf24; line-height: 32px; text-align: center; text-shadow: 0 0 3px #000, 0 0 6px rgba(0,0,0,0.5); }
+
+    @media (max-width: 768px) {
+      .app { flex-direction: column; height: auto; min-height: 100vh; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb; max-height: none; }
+      .map-wrap { height: 360px; flex: none; border-left: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>Spot</h1>
+      <p class="sub">Find where you should all live</p>
+
+      <section>
+        <div class="section-title">People</div>
+        <div id="persons" class="pills"></div>
+        <button id="addPerson">+ Add person</button>
+      </section>
+
+      <section>
+        <div class="section-title">Next pin</div>
+        <input id="nextLabel" type="text" placeholder="Label (e.g. Office)" autocomplete="off" />
+        <select id="nextType">
+          <option value="work">work</option>
+          <option value="gym">gym</option>
+          <option value="church">church</option>
+          <option value="school">school</option>
+          <option value="family">family</option>
+          <option value="custom">custom</option>
+        </select>
+        <p class="hint">Click on the map to drop a pin for the active person.</p>
+      </section>
+
+      <section>
+        <div class="section-title">Points</div>
+        <div id="points"></div>
+      </section>
+
+      <button id="calc" disabled>Calculate optimal zone</button>
+    </aside>
+    <div class="map-wrap"><div id="map"></div></div>
+  </div>
+
+  <script>
+    const COLORS = ['#185FA5', '#0F6E56', '#993C1D', '#7F77DD', '#BA7517'];
+
+    const state = {
+      persons: [],
+      points: [],
+      activePersonId: null,
+      nextLabel: '',
+      nextType: 'work'
+    };
+
+    let nextPersonId = 1;
+    let nextPointId = 1;
+
+    const map = L.map('map').setView([60.391, 5.324], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    const pointMarkers = new Map();
+    let heatLayer = null;
+    let bestMarker = null;
+
+    function getPerson(id) { return state.persons.find(p => p.id === id); }
+    function activePerson() { return getPerson(state.activePersonId); }
+
+    function pinIcon(color) {
+      return L.divIcon({
+        className: 'pin-icon',
+        html: `<div class="pin-shape" style="background:${color}"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+    }
+
+    function starIcon() {
+      return L.divIcon({
+        className: 'star-icon',
+        html: '<div class="star">&#9733;</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    function addPerson() {
+      if (state.persons.length >= 5) return;
+      const color = COLORS[state.persons.length];
+      const id = nextPersonId++;
+      const name = `Person ${state.persons.length + 1}`;
+      state.persons.push({ id, name, color });
+      if (state.activePersonId == null) state.activePersonId = id;
+      render();
+    }
+
+    function removePerson(id) {
+      state.persons = state.persons.filter(p => p.id !== id);
+      state.points.filter(pt => pt.personId === id).forEach(pt => {
+        const m = pointMarkers.get(pt.id);
+        if (m) { map.removeLayer(m); pointMarkers.delete(pt.id); }
+      });
+      state.points = state.points.filter(pt => pt.personId !== id);
+      if (state.activePersonId === id) {
+        state.activePersonId = state.persons[0] ? state.persons[0].id : null;
+      }
+      render();
+    }
+
+    function setActive(id) {
+      state.activePersonId = id;
+      render();
+    }
+
+    function renamePerson(id, name) {
+      const p = getPerson(id);
+      if (!p) return;
+      p.name = name || `Person`;
+      updateMarkerTooltips();
+    }
+
+    function addPoint(lat, lng) {
+      const person = activePerson();
+      if (!person) return;
+      const fallback = state.nextType.charAt(0).toUpperCase() + state.nextType.slice(1);
+      const label = state.nextLabel.trim() || fallback;
+      const id = nextPointId++;
+      const point = { id, personId: person.id, lat, lng, label, type: state.nextType, weight: 3 };
+      state.points.push(point);
+      const marker = L.marker([lat, lng], { icon: pinIcon(person.color) }).addTo(map);
+      marker.bindTooltip(`${person.name}: ${label} (w:${point.weight})`);
+      marker.on('click', () => removePoint(id));
+      pointMarkers.set(id, marker);
+      render();
+    }
+
+    function removePoint(id) {
+      state.points = state.points.filter(p => p.id !== id);
+      const m = pointMarkers.get(id);
+      if (m) { map.removeLayer(m); pointMarkers.delete(id); }
+      render();
+    }
+
+    function setWeight(id, w) {
+      const p = state.points.find(pt => pt.id === id);
+      if (!p) return;
+      p.weight = w;
+      updateMarkerTooltips();
+    }
+
+    function updateMarkerTooltips() {
+      for (const point of state.points) {
+        const marker = pointMarkers.get(point.id);
+        const person = getPerson(point.personId);
+        if (marker && person) {
+          marker.setTooltipContent(`${person.name}: ${point.label} (w:${point.weight})`);
+        }
+      }
+    }
+
+    function render() {
+      const peopleEl = document.getElementById('persons');
+      peopleEl.innerHTML = '';
+      for (const p of state.persons) {
+        const isActive = p.id === state.activePersonId;
+        const pill = document.createElement('div');
+        pill.className = 'pill';
+        pill.style.borderColor = p.color;
+        pill.style.background = isActive ? hexToRgba(p.color, 0.13) : '#fff';
+
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = p.color;
+
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.contentEditable = 'true';
+        name.spellcheck = false;
+        name.textContent = p.name;
+        name.addEventListener('click', e => e.stopPropagation());
+        name.addEventListener('blur', () => {
+          renamePerson(p.id, name.textContent.trim());
+          render();
+        });
+        name.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+        });
+
+        const x = document.createElement('button');
+        x.className = 'x';
+        x.title = 'Remove person';
+        x.textContent = '×';
+        x.addEventListener('click', e => { e.stopPropagation(); removePerson(p.id); });
+
+        pill.appendChild(dot);
+        pill.appendChild(name);
+        pill.appendChild(x);
+        pill.addEventListener('click', () => setActive(p.id));
+        peopleEl.appendChild(pill);
+      }
+
+      const addBtn = document.getElementById('addPerson');
+      addBtn.disabled = state.persons.length >= 5;
+      addBtn.style.display = state.persons.length >= 5 ? 'none' : '';
+
+      const ptsEl = document.getElementById('points');
+      ptsEl.innerHTML = '';
+      const active = activePerson();
+      if (!active) {
+        const hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = 'Add a person to begin.';
+        ptsEl.appendChild(hint);
+      } else {
+        const myPoints = state.points.filter(pt => pt.personId === active.id);
+        if (myPoints.length === 0) {
+          const hint = document.createElement('p');
+          hint.className = 'hint';
+          hint.textContent = `No points for ${active.name} yet. Click on the map.`;
+          ptsEl.appendChild(hint);
+        } else {
+          for (const pt of myPoints) {
+            ptsEl.appendChild(pointRow(pt));
+          }
+        }
+      }
+
+      const calc = document.getElementById('calc');
+      calc.disabled = state.points.length < 2;
+    }
+
+    function pointRow(pt) {
+      const row = document.createElement('div');
+      row.className = 'point';
+
+      const r1 = document.createElement('div');
+      r1.className = 'row1';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = pt.label;
+      const badge = document.createElement('span');
+      badge.className = 'type-badge';
+      badge.textContent = pt.type;
+      const del = document.createElement('button');
+      del.className = 'x';
+      del.title = 'Remove point';
+      del.textContent = '×';
+      del.addEventListener('click', () => removePoint(pt.id));
+      r1.appendChild(label); r1.appendChild(badge); r1.appendChild(del);
+
+      const r2 = document.createElement('div');
+      r2.className = 'row2';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '1'; slider.max = '5'; slider.step = '1';
+      slider.value = String(pt.weight);
+      const wLabel = document.createElement('span');
+      wLabel.className = 'w';
+      wLabel.textContent = `w: ${pt.weight}`;
+      slider.addEventListener('input', () => {
+        wLabel.textContent = `w: ${slider.value}`;
+        setWeight(pt.id, parseInt(slider.value, 10));
+      });
+      r2.appendChild(slider); r2.appendChild(wLabel);
+
+      row.appendChild(r1); row.appendChild(r2);
+      return row;
+    }
+
+    function hexToRgba(hex, a) {
+      const v = hex.replace('#', '');
+      const r = parseInt(v.substring(0, 2), 16);
+      const g = parseInt(v.substring(2, 4), 16);
+      const b = parseInt(v.substring(4, 6), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function haversine(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function calculate() {
+      if (state.points.length < 2) return;
+
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      for (const p of state.points) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      const padLat = Math.max((maxLat - minLat) * 0.01, 0.0005);
+      const padLng = Math.max((maxLng - minLng) * 0.01, 0.0005);
+      minLat -= padLat; maxLat += padLat;
+      minLng -= padLng; maxLng += padLng;
+
+      const W = 80, H = 80;
+      const dLat = (maxLat - minLat) / H;
+      const dLng = (maxLng - minLng) / W;
+
+      const costs = new Float64Array(W * H);
+      let bestIdx = 0, bestCost = Infinity, worstCost = -Infinity;
+
+      for (let y = 0; y < H; y++) {
+        const lat = maxLat - (y + 0.5) * dLat;
+        for (let x = 0; x < W; x++) {
+          const lng = minLng + (x + 0.5) * dLng;
+          let s = 0;
+          for (const pt of state.points) {
+            s += pt.weight * haversine(lat, lng, pt.lat, pt.lng);
+          }
+          const i = y * W + x;
+          costs[i] = s;
+          if (s < bestCost) { bestCost = s; bestIdx = i; }
+          if (s > worstCost) worstCost = s;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(W, H);
+      const range = (worstCost - bestCost) || 1;
+      for (let i = 0; i < W * H; i++) {
+        const goodness = (worstCost - costs[i]) / range;
+        img.data[i * 4]     = 124;
+        img.data[i * 4 + 1] = 58;
+        img.data[i * 4 + 2] = 237;
+        img.data[i * 4 + 3] = Math.round(goodness * 220);
+      }
+      ctx.putImageData(img, 0, 0);
+
+      if (heatLayer) map.removeLayer(heatLayer);
+      heatLayer = L.imageOverlay(canvas.toDataURL(), [[minLat, minLng], [maxLat, maxLng]], {
+        opacity: 0.85,
+        interactive: false
+      }).addTo(map);
+
+      const by = Math.floor(bestIdx / W);
+      const bx = bestIdx % W;
+      const bestLat = maxLat - (by + 0.5) * dLat;
+      const bestLng = minLng + (bx + 0.5) * dLng;
+
+      if (bestMarker) map.removeLayer(bestMarker);
+      bestMarker = L.marker([bestLat, bestLng], { icon: starIcon(), zIndexOffset: 1000 })
+        .addTo(map)
+        .bindTooltip('Optimal spot');
+
+      map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [24, 24] });
+    }
+
+    map.on('click', e => {
+      if (state.activePersonId == null) return;
+      addPoint(e.latlng.lat, e.latlng.lng);
+    });
+
+    document.getElementById('addPerson').addEventListener('click', addPerson);
+    document.getElementById('nextLabel').addEventListener('input', e => {
+      state.nextLabel = e.target.value;
+    });
+    document.getElementById('nextType').addEventListener('change', e => {
+      state.nextType = e.target.value;
+    });
+    document.getElementById('calc').addEventListener('click', calculate);
+
+    render();
+  </script>
+</body>
+</html>

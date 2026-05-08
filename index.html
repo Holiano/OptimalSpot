@@ -54,6 +54,7 @@
     .pin-shape { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.3); }
 
     .star-icon { background: transparent; border: none; }
+    .leaflet-overlay-pane img { border: none; outline: none; box-shadow: none; }
     .star { font-size: 30px; color: #fbbf24; line-height: 32px; text-align: center; text-shadow: 0 0 3px #000, 0 0 6px rgba(0,0,0,0.5); }
 
     @media (max-width: 768px) {
@@ -380,28 +381,28 @@
         }
       }
 
+      const by = Math.floor(bestIdx / W);
+      const bx = bestIdx % W;
+      const cx = bx + 0.5;
+      const cy = by + 0.5;
+      const radius = W * 0.4;
+
       const canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
-      const img = ctx.createImageData(W, H);
-      const range = (worstCost - bestCost) || 1;
-      for (let i = 0; i < W * H; i++) {
-        const goodness = (worstCost - costs[i]) / range;
-        img.data[i * 4]     = 124;
-        img.data[i * 4 + 1] = 58;
-        img.data[i * 4 + 2] = 237;
-        img.data[i * 4 + 3] = Math.round(goodness * 220);
-      }
-      ctx.putImageData(img, 0, 0);
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0,    'rgba(107, 33, 168, 0.85)');
+      grad.addColorStop(0.4,  'rgba(107, 33, 168, 0.4)');
+      grad.addColorStop(1,    'rgba(107, 33, 168, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
 
       if (heatLayer) map.removeLayer(heatLayer);
-      heatLayer = L.imageOverlay(canvas.toDataURL(), [[minLat, minLng], [maxLat, maxLng]], {
+      heatLayer = L.imageOverlay(canvas.toDataURL('image/png'), [[minLat, minLng], [maxLat, maxLng]], {
         opacity: 0.85,
         interactive: false
       }).addTo(map);
 
-      const by = Math.floor(bestIdx / W);
-      const bx = bestIdx % W;
       const bestLat = maxLat - (by + 0.5) * dLat;
       const bestLng = minLng + (bx + 0.5) * dLng;
 

@@ -96,7 +96,6 @@
 
       <section>
         <div class="section-title">Next pin</div>
-        <input id="nextLabel" type="text" placeholder="Label (e.g. Office)" autocomplete="off" />
         <select id="nextType">
           <option value="work">work</option>
           <option value="gym">gym</option>
@@ -105,6 +104,8 @@
           <option value="family">family</option>
           <option value="custom">custom</option>
         </select>
+        <input id="nextLabel" type="text" placeholder="Label (e.g. Office)" autocomplete="off" style="display:none" />
+        <p id="labelError" class="hint" style="display:none;color:#ef4444">Please enter a label for your custom pin.</p>
         <p class="hint">Click on the map to drop a pin for the active person.</p>
       </section>
 
@@ -202,8 +203,15 @@
     function addPoint(lat, lng) {
       const person = activePerson();
       if (!person) return;
+      const isCustom = state.nextType === 'custom';
+      const labelInput = document.getElementById('nextLabel');
+      const labelError = document.getElementById('labelError');
+      if (isCustom && !state.nextLabel.trim()) {
+        labelError.style.display = '';
+        return;
+      }
       const fallback = state.nextType.charAt(0).toUpperCase() + state.nextType.slice(1);
-      const label = state.nextLabel.trim() || fallback;
+      const label = isCustom ? state.nextLabel.trim() : fallback;
       const id = nextPointId++;
       const point = { id, personId: person.id, lat, lng, label, type: state.nextType, weight: 3 };
       state.points.push(point);
@@ -211,6 +219,7 @@
       marker.bindTooltip(`${person.name}: ${label} (w:${point.weight})`);
       marker.on('click', () => removePoint(id));
       pointMarkers.set(id, marker);
+      labelError.style.display = 'none';
       render();
     }
 
@@ -530,9 +539,14 @@
     document.getElementById('addPerson').addEventListener('click', addPerson);
     document.getElementById('nextLabel').addEventListener('input', e => {
       state.nextLabel = e.target.value;
+      if (e.target.value.trim()) document.getElementById('labelError').style.display = 'none';
     });
     document.getElementById('nextType').addEventListener('change', e => {
       state.nextType = e.target.value;
+      const isCustom = e.target.value === 'custom';
+      const labelInput = document.getElementById('nextLabel');
+      labelInput.style.display = isCustom ? '' : 'none';
+      if (!isCustom) { state.nextLabel = ''; labelInput.value = ''; document.getElementById('labelError').style.display = 'none'; }
     });
     function resetMap() {
       for (const [, m] of pointMarkers) map.removeLayer(m);

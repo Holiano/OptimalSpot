@@ -57,6 +57,19 @@
     .leaflet-overlay-pane img { border: none; outline: none; box-shadow: none; }
     .star { font-size: 30px; color: #fbbf24; line-height: 32px; text-align: center; text-shadow: 0 0 3px #000, 0 0 6px rgba(0,0,0,0.5); }
 
+    .save-bar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+    .save-bar select { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-family: inherit; color: inherit; }
+    .save-bar select:focus { outline: none; border-color: #94a3b8; }
+    .save-bar .save-row { display: flex; gap: 6px; }
+    .save-bar input { flex: 1; min-width: 0; font-size: 12px; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-family: inherit; color: inherit; }
+    .save-bar input:focus { outline: none; border-color: #94a3b8; }
+    .save-bar button { font-size: 12px; padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    #saveBtn { background: #1f2937; color: #fff; }
+    #saveBtn:hover { background: #111827; }
+    #deleteBtn { background: #f1f5f9; color: #475569; }
+    #deleteBtn:hover:not(:disabled) { background: #fee2e2; color: #ef4444; }
+    #deleteBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
     @media (max-width: 768px) {
       .app { flex-direction: column; height: auto; min-height: 100vh; }
       .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb; max-height: none; }
@@ -67,6 +80,14 @@
 <body>
   <div class="app">
     <aside class="sidebar">
+      <div class="save-bar">
+        <select id="saveSelect"><option value="">— load a save —</option></select>
+        <div class="save-row">
+          <input id="saveName" type="text" placeholder="Session name" autocomplete="off" />
+          <button id="saveBtn">Save</button>
+          <button id="deleteBtn" disabled>Delete</button>
+        </div>
+      </div>
       <h1>Spot</h1>
       <p class="sub">Find where you should all live</p>
 
@@ -383,22 +404,31 @@
 
       const by = Math.floor(bestIdx / W);
       const bx = bestIdx % W;
-      const cx = bx + 0.5;
-      const cy = by + 0.5;
-      const radius = W * 0.4;
+      const CW = W * 3, CH = H * 3;
+      const cx = bx + 0.5 + W;
+      const cy = by + 0.5 + H;
+      const radius = CW * 0.15;
+
+      const latCenter = (minLat + maxLat) / 2;
+      const lngCenter = (minLng + maxLng) / 2;
+      const latHalf   = (maxLat - minLat) / 2;
+      const lngHalf   = (maxLng - minLng) / 2;
+      const ovBounds  = [[latCenter - latHalf * 3, lngCenter - lngHalf * 3],
+                         [latCenter + latHalf * 3, lngCenter + lngHalf * 3]];
 
       const canvas = document.createElement('canvas');
-      canvas.width = W; canvas.height = H;
+      canvas.width = CW; canvas.height = CH;
       const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, CW, CH);
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-      grad.addColorStop(0,    'rgba(107, 33, 168, 0.85)');
-      grad.addColorStop(0.4,  'rgba(107, 33, 168, 0.4)');
-      grad.addColorStop(1,    'rgba(107, 33, 168, 0)');
+      grad.addColorStop(0,   'rgba(107, 33, 168, 0.85)');
+      grad.addColorStop(0.4, 'rgba(107, 33, 168, 0.4)');
+      grad.addColorStop(1,   'rgba(107, 33, 168, 0)');
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, CW, CH);
 
       if (heatLayer) map.removeLayer(heatLayer);
-      heatLayer = L.imageOverlay(canvas.toDataURL('image/png'), [[minLat, minLng], [maxLat, maxLng]], {
+      heatLayer = L.imageOverlay(canvas.toDataURL('image/png'), ovBounds, {
         opacity: 0.85,
         interactive: false
       }).addTo(map);
@@ -414,6 +444,86 @@
       map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [24, 24] });
     }
 
+    const STORAGE_KEY = 'spot_saves';
+
+    function getSaves() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function setSaves(saves) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+    }
+
+    function populateDropdown() {
+      const sel = document.getElementById('saveSelect');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">— load a save —</option>';
+      for (const s of getSaves()) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+      }
+      if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
+      document.getElementById('deleteBtn').disabled = !sel.value;
+    }
+
+    function saveSession() {
+      const nameEl = document.getElementById('saveName');
+      const name = nameEl.value.trim();
+      if (!name) { alert('Please enter a session name.'); nameEl.focus(); return; }
+      const saves = getSaves();
+      const existingIdx = saves.findIndex(s => s.name === name);
+      if (existingIdx !== -1) {
+        if (!confirm(`Overwrite save "${name}"?`)) return;
+        saves[existingIdx].persons = JSON.parse(JSON.stringify(state.persons));
+        saves[existingIdx].points  = JSON.parse(JSON.stringify(state.points));
+      } else {
+        saves.push({
+          id: String(Date.now()),
+          name,
+          createdAt: new Date().toISOString(),
+          persons: JSON.parse(JSON.stringify(state.persons)),
+          points:  JSON.parse(JSON.stringify(state.points))
+        });
+      }
+      setSaves(saves);
+      populateDropdown();
+      const saved = getSaves().find(s => s.name === name);
+      if (saved) { document.getElementById('saveSelect').value = saved.id; document.getElementById('deleteBtn').disabled = false; }
+    }
+
+    function loadSession(id) {
+      const save = getSaves().find(s => s.id === id);
+      if (!save) return;
+      for (const [, m] of pointMarkers) map.removeLayer(m);
+      pointMarkers.clear();
+      if (heatLayer)   { map.removeLayer(heatLayer);   heatLayer   = null; }
+      if (bestMarker)  { map.removeLayer(bestMarker);  bestMarker  = null; }
+      state.persons = JSON.parse(JSON.stringify(save.persons));
+      state.points  = JSON.parse(JSON.stringify(save.points));
+      state.activePersonId = state.persons[0] ? state.persons[0].id : null;
+      nextPersonId = state.persons.reduce((m, p) => Math.max(m, p.id + 1), 1);
+      nextPointId  = state.points.reduce((m, p)  => Math.max(m, p.id + 1), 1);
+      for (const pt of state.points) {
+        const person = getPerson(pt.personId);
+        if (!person) continue;
+        const marker = L.marker([pt.lat, pt.lng], { icon: pinIcon(person.color) }).addTo(map);
+        marker.bindTooltip(`${person.name}: ${pt.label} (w:${pt.weight})`);
+        marker.on('click', () => removePoint(pt.id));
+        pointMarkers.set(pt.id, marker);
+      }
+      render();
+    }
+
+    function deleteSession() {
+      const id = document.getElementById('saveSelect').value;
+      if (!id) return;
+      setSaves(getSaves().filter(s => s.id !== id));
+      populateDropdown();
+    }
+
     map.on('click', e => {
       if (state.activePersonId == null) return;
       addPoint(e.latlng.lat, e.latlng.lng);
@@ -427,7 +537,14 @@
       state.nextType = e.target.value;
     });
     document.getElementById('calc').addEventListener('click', calculate);
+    document.getElementById('saveBtn').addEventListener('click', saveSession);
+    document.getElementById('deleteBtn').addEventListener('click', deleteSession);
+    document.getElementById('saveSelect').addEventListener('change', e => {
+      document.getElementById('deleteBtn').disabled = !e.target.value;
+      if (e.target.value) loadSession(e.target.value);
+    });
 
+    populateDropdown();
     render();
   </script>
 </body>

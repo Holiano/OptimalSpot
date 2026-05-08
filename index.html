@@ -46,7 +46,9 @@
     .point .row2 input[type=range] { flex: 1; accent-color: #1f2937; }
     .point .w { font-size: 11px; color: #6b7280; min-width: 32px; text-align: right; }
 
-    #calc { width: 100%; padding: 11px; background: #1f2937; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 14px; }
+    #reset { width: 100%; padding: 11px; background: #fff; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 14px; font-family: inherit; }
+    #reset:hover { background: #f9fafb; border-color: #9ca3af; }
+    #calc { width: 100%; padding: 11px; background: #1f2937; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 8px; }
     #calc:disabled { background: #d1d5db; cursor: not-allowed; }
     #calc:hover:not(:disabled) { background: #111827; }
 
@@ -111,6 +113,7 @@
         <div id="points"></div>
       </section>
 
+      <button id="reset">Reset map</button>
       <button id="calc" disabled>Calculate optimal zone</button>
     </aside>
     <div class="map-wrap"><div id="map"></div></div>
@@ -531,6 +534,16 @@
     document.getElementById('nextType').addEventListener('change', e => {
       state.nextType = e.target.value;
     });
+    function resetMap() {
+      for (const [, m] of pointMarkers) map.removeLayer(m);
+      pointMarkers.clear();
+      if (heatLayer)  { map.removeLayer(heatLayer);  heatLayer  = null; }
+      if (bestMarker) { map.removeLayer(bestMarker); bestMarker = null; }
+      state.points = [];
+      render();
+    }
+
+    document.getElementById('reset').addEventListener('click', resetMap);
     document.getElementById('calc').addEventListener('click', calculate);
     document.getElementById('saveBtn').addEventListener('click', saveSession);
     document.getElementById('deleteBtn').addEventListener('click', deleteSession);

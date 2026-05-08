@@ -393,7 +393,7 @@
           const lng = minLng + (x + 0.5) * dLng;
           let s = 0;
           for (const pt of state.points) {
-            s += pt.weight * haversine(lat, lng, pt.lat, pt.lng);
+            s += Math.sqrt(pt.weight) * haversine(lat, lng, pt.lat, pt.lng);
           }
           const i = y * W + x;
           costs[i] = s;
